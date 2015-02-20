@@ -1,0 +1,109 @@
+#!/usr/bin/env perl
+
+# show-wip - Lists work in progress
+#                   by finding active branches in your local git repos.
+
+#-------------------------------
+# CONFIG
+#-------------------------------
+
+#where do you keep local git repositories?
+my $DEFAULT_WORKSPACE_LOCATION = $ENV{HOME} . '/workspace';
+#-------------------------------
+
+use strict;
+use Getopt::Std;
+
+my %options = (); # ( a => 'show_all_including_inactive', v => 'verbose', f => 'folder' );	
+getopts('avhf:',\%options);
+
+ShowUsage() if $options{h};
+
+my $workspace_location = $options{f} || $DEFAULT_WORKSPACE_LOCATION;
+my @gitRepos = GetListOfRepos($workspace_location);
+my @gitBranches = ();
+
+foreach my $gitRepo (@gitRepos) {
+	my $gitRepoLocation = "$workspace_location/$gitRepo";
+	push @gitBranches, GetBranchesFromRepo($gitRepo, $gitRepoLocation);
+}
+
+PrintBranches(\@gitBranches, \%options);
+
+sub ShowUsage {
+	print  <<EOT;
+show-wip - Lists work in progress by finding active branches in your local git repos.
+
+usage: show-wip [-a] [-f folder] [-h] [-v]
+	-a        :  show all branches, default is to show pony active branches.
+	-f folder :  where to look for git repositories. Default is ~/workspace.
+	-h        :  help, show this message.
+	-v        :  verbose, show last commit message for each branch too. 
+
+For more information visit https://github.com/alicraigmile/show-wip/
+EOT
+exit 0;
+}
+
+sub GetBranchesFromRepo {
+	my $gitRepo = shift;
+	my $gitRepoLocation = shift;
+
+	chdir($gitRepoLocation);
+
+	my @branches = map {getGitBranchInfoFromText($gitRepo, $_)}split $/, `git branch -v 2>/dev/null`;
+	return @branches;
+}
+
+sub GetListOfRepos {
+	my $workspaceLocation = shift;
+
+	local *DIR;
+	opendir(DIR, $workspaceLocation);
+	my @gitRepos =  grep { $_ !~ /^\./ && -d "$workspaceLocation/$_" } 	readdir(DIR);
+	closedir(DIR);
+
+	return @gitRepos;
+}
+
+sub getGitBranchInfoFromText {
+	my $gitRepo = shift;
+	my $text = shift;
+
+	my @branchInfo = ($text =~/^([\*])*\s+([^\s]+)\s+([^\s]+)\s+(.*)/);
+#	use Data::Dumper;
+#	print Dumper(\@branchInfo);
+
+	my $branchName = $branchInfo[1];
+	my $branchIsActive = $branchInfo[0];
+	my $branchComment = $branchInfo[3];
+
+	my $gitBranchInfo = {
+		repo => $gitRepo,
+		name => $branchName,
+		full_name => "$gitRepo/$branchName",
+		active => $branchIsActive,
+		comment => $branchComment
+	};
+	return $gitBranchInfo;
+}
+
+sub PrintBranches {
+	my $gitBranches = shift;
+	my $options =  shift;
+
+	print "You have the following WIP:\n\n";
+
+	foreach my $gitBranch (sort { $b->{active} <=> $a->{active} || $a->{full_name} cmp $b->{full_name} } @$gitBranches)  {
+		next if ! $gitBranch->{active} && ! $options->{a};	
+		print "* " if $gitBranch->{active};
+		print "  " if ! $gitBranch->{active};
+		print $gitBranch->{full_name};
+		if ($options->{v}) {
+			print "\n\t";
+			print $gitBranch->{comment};
+		print "\n";
+		}
+		print "\n";
+	}	
+}

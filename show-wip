@@ -71,19 +71,20 @@ sub getGitBranchInfoFromText {
 	my $text = shift;
 
 	my @branchInfo = ($text =~/^([\*])*\s+([^\s]+)\s+([^\s]+)\s+(.*)/);
-#	use Data::Dumper;
-#	print Dumper(\@branchInfo);
 
 	my $branchName = $branchInfo[1];
 	my $branchIsActive = $branchInfo[0];
 	my $branchComment = $branchInfo[3];
-
+	
+	my $branchLastUpdated = `git show --pretty=format:"%at" $branchName | head -1`;
+  
 	my $gitBranchInfo = {
 		repo => $gitRepo,
 		name => $branchName,
 		full_name => "$gitRepo/$branchName",
 		active => $branchIsActive,
-		comment => $branchComment
+		comment => $branchComment,
+		last_updated => $branchLastUpdated
 	};
 	return $gitBranchInfo;
 }
@@ -92,9 +93,9 @@ sub PrintBranches {
 	my $gitBranches = shift;
 	my $options =  shift;
 
-	print "You have the following  work in progress:\n\n";
+	print "Current work in progress:\n\n";
 
-	foreach my $gitBranch (sort { $b->{active} <=> $a->{active} || $a->{full_name} cmp $b->{full_name} } @$gitBranches)  {
+	foreach my $gitBranch (sort { $b->{last_updated} <=> $a->{last_updated} || $b->{active} <=> $a->{active} || $a->{full_name} cmp $b->{full_name} } @$gitBranches)  {
 		next if ! $gitBranch->{active} && ! $options->{a};	
 		print "* " if $gitBranch->{active};
 		print "  " if ! $gitBranch->{active};
@@ -102,6 +103,8 @@ sub PrintBranches {
 		if ($options->{v}) {
 			print "\n\t";
 			print $gitBranch->{comment};
+      print "\n\t";
+      print "Last updated: " . localtime($gitBranch->{last_updated});
 		print "\n";
 		}
 		print "\n";

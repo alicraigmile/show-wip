@@ -92,7 +92,7 @@ sub PrintBranches {
 	my $gitBranches = shift;
 	my $options =  shift;
 
-	print "You have the following WIP:\n\n";
+	print "You have the following  work in progress:\n\n";
 
 	foreach my $gitBranch (sort { $b->{active} <=> $a->{active} || $a->{full_name} cmp $b->{full_name} } @$gitBranches)  {
 		next if ! $gitBranch->{active} && ! $options->{a};	
